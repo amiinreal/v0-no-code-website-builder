@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import type { EditorElement } from "@/lib/types"
 import { useEditor } from "../editor-provider"
+import { normalizeInlineStyles } from "@/lib/style-normalizer"
 
 interface ButtonPropertiesProps {
   element: EditorElement
@@ -19,8 +20,10 @@ export function ButtonProperties({ element }: ButtonPropertiesProps) {
   }
 
   const handleStyleChange = (field: string, value: any) => {
+    // Normalize styles to prevent shorthand/longhand conflicts
+    const normalizedStyles = normalizeInlineStyles({ ...element.styles, [field]: value })
     updateElement(element.id, {
-      styles: { ...element.styles, [field]: value },
+      styles: normalizedStyles,
     })
   }
 

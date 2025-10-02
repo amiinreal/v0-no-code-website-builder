@@ -2,21 +2,24 @@
 
 import { Button } from "@/components/ui/button"
 import { useEditor } from "./editor-provider"
-import { ArrowLeft, Save, Eye, Settings, Database, Globe, Languages, Undo, Redo } from "lucide-react"
+import { ArrowLeft, Save, Eye, Settings, Database, Globe, Languages, Undo, Redo, Grid3X3 } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { PublishDialog } from "./publish-dialog"
 import { ViewportSwitcher, type Viewport } from "./viewport-switcher"
+import { SnapToGrid } from "./snap-to-grid"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface EditorToolbarProps {
   viewport: Viewport
   onViewportChange: (viewport: Viewport) => void
+  showGrid: boolean
+  onGridToggle: (show: boolean) => void
 }
 
-export function EditorToolbar({ viewport, onViewportChange }: EditorToolbarProps) {
+export function EditorToolbar({ viewport, onViewportChange, showGrid, onGridToggle }: EditorToolbarProps) {
   const { project, currentPage, elements, undo, redo, canUndo, canRedo } = useEditor()
   const [isSaving, setIsSaving] = useState(false)
   const [isPublishOpen, setIsPublishOpen] = useState(false)
@@ -83,6 +86,21 @@ export function EditorToolbar({ viewport, onViewportChange }: EditorToolbarProps
                   <p>Redo (Cmd+Y)</p>
                 </TooltipContent>
               </Tooltip>
+              <div className="h-4 w-px bg-border mx-1" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={showGrid ? "default" : "ghost"} 
+                    size="sm" 
+                    onClick={() => onGridToggle(!showGrid)}
+                  >
+                    <Grid3X3 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Toggle Grid</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </TooltipProvider>
         </div>
@@ -135,7 +153,7 @@ function flattenElements(elements: any[], parentId: string | null = null): any[]
     result.push({
       ...element,
       parent_id: parentId,
-      order_index: index,
+      position: index,
     })
     if (children && children.length > 0) {
       result.push(...flattenElements(children, el.id))

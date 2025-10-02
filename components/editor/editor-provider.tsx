@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import type { KeyboardEvent } from "react"
 
 import type { Project, Page, Element, EditorElement } from "@/lib/types"
 import { createContext, useContext, useState, useCallback, useEffect } from "react"
@@ -11,6 +10,7 @@ import {
   type DragStartEvent,
   DragOverlay,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   closestCenter,
@@ -18,6 +18,7 @@ import {
 import { getDragData } from "@/lib/dnd/utils"
 import { DndOverlay } from "./dnd/dnd-overlay"
 import { useHistory } from "@/lib/hooks/use-history"
+import { generateHydrationSafeId } from "@/lib/utils/stable-id"
 
 interface EditorContextType {
   project: Project
@@ -84,7 +85,7 @@ export function EditorProvider({
   }, [initialElements, resetHistory])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault()
         undo()
@@ -110,7 +111,13 @@ export function EditorProvider({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
       },
     }),
   )
@@ -118,13 +125,13 @@ export function EditorProvider({
   const addElement = useCallback(
     (element: Partial<Element>) => {
       const newElement: EditorElement = {
-        id: crypto.randomUUID(),
+        id: generateHydrationSafeId(),
         page_id: currentPage?.id || "",
         parent_id: element.parent_id || null,
         type: element.type || "text",
         content: element.content || {},
         styles: element.styles || {},
-        order_index: element.order_index || elements.length,
+        position: element.position || elements.length,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -148,9 +155,33 @@ export function EditorProvider({
 
   const deleteElement = useCallback(
     (id: string) => {
-      const filteredElements = elements.filter((el) => el.id !== id && el.parent_id !== id)
-      setElementsState(filteredElements)
-      setElements(filteredElements)
+      // First flatten the elements to work with them
+      const flatElements = flattenElementsForReorder(elements)
+      
+      // Function to recursively collect all child IDs
+      const collectChildIds = (parentId: string): string[] => {
+        const childIds: string[] = []
+        flatElements.forEach(el => {
+          if (el.parent_id === parentId) {
+            childIds.push(el.id)
+            // Recursively collect children of children
+            childIds.push(...collectChildIds(el.id))
+          }
+        })
+        return childIds
+      }
+      
+      // Get all IDs to delete (element + all its children)
+      const idsToDelete = [id, ...collectChildIds(id)]
+      
+      // Filter out the element and all its children
+      const filteredElements = flatElements.filter((el) => !idsToDelete.includes(el.id))
+      
+      // Rebuild the tree structure
+      const newElements = buildElementTree(filteredElements)
+      
+      setElementsState(newElements)
+      setElements(newElements)
       setSelectedElement(null)
     },
     [elements, setElementsState],
@@ -167,7 +198,7 @@ export function EditorProvider({
       const updatedElement = {
         ...element,
         parent_id: newParentId,
-        order_index: position,
+        position: position,
       }
 
       // Remove old element and add updated one
@@ -175,7 +206,7 @@ export function EditorProvider({
       filtered.splice(position, 0, updatedElement)
 
       // Rebuild tree
-      const newElements = buildElementTree(filtered.map((el, idx) => ({ ...el, order_index: idx })))
+      const newElements = buildElementTree(filtered.map((el, idx) => ({ ...el, position: idx })))
       setElementsState(newElements)
       setElements(newElements)
     },
@@ -253,10 +284,10 @@ export function EditorProvider({
         }}
       >
         {children}
-        <DragOverlay>
-          <DndOverlay activeId={activeId} activeType={activeType} />
-        </DragOverlay>
       </EditorContext.Provider>
+      <DragOverlay>
+        <DndOverlay />
+      </DragOverlay>
     </DndContext>
   )
 }
@@ -265,25 +296,32 @@ function buildElementTree(elements: Element[]): EditorElement[] {
   const elementMap = new Map<string, EditorElement>()
   const rootElements: EditorElement[] = []
 
+  // Sort elements by position to maintain order
+  const sortedElements = [...elements].sort((a, b) => (a.position || 0) - (b.position || 0))
+
   // Create map of all elements
-  elements.forEach((el) => {
+  sortedElements.forEach((el) => {
     elementMap.set(el.id, { ...el, children: [] })
   })
 
   // Build tree structure
-  elements.forEach((el) => {
+  sortedElements.forEach((el) => {
     const element = elementMap.get(el.id)!
     if (el.parent_id) {
       const parent = elementMap.get(el.parent_id)
       if (parent) {
         parent.children = parent.children || []
         parent.children.push(element)
+        // Sort children by position
+        parent.children.sort((a, b) => (a.position || 0) - (b.position || 0))
       }
     } else {
       rootElements.push(element)
     }
   })
 
+  // Sort root elements by position
+  rootElements.sort((a, b) => (a.position || 0) - (b.position || 0))
   return rootElements
 }
 
@@ -293,12 +331,16 @@ function getDefaultContent(type: string): Record<string, any> {
       return { text: "Edit this text", tag: "p" }
     case "image":
       return { src: "/placeholder.svg?height=200&width=400", alt: "Image" }
+    case "logo":
+      return { src: "", alt: "Logo" }
     case "button":
       return { text: "Click me", href: "#" }
     case "navbar":
       return { brand: "Brand", links: [] }
     case "footer":
       return { text: "© 2025 All rights reserved" }
+    case "form":
+      return { title: "Contact Form", action: "", method: "POST" }
     default:
       return {}
   }
@@ -312,8 +354,42 @@ function getDefaultStyles(type: string): Record<string, any> {
       return { maxWidth: "1200px", margin: "0 auto", padding: "20px" }
     case "text":
       return { fontSize: "16px", color: "#000000" }
+    case "image":
+      return { maxWidth: "100%", height: "auto" }
+    case "logo":
+      return { maxHeight: "48px", width: "auto" }
     case "button":
-      return { padding: "10px 20px", backgroundColor: "#000000", color: "#ffffff", borderRadius: "4px" }
+      return { 
+        padding: "10px 20px", 
+        backgroundColor: "#000000", 
+        color: "#ffffff", 
+        borderRadius: "4px",
+        border: "none",
+        cursor: "pointer"
+      }
+    case "navbar":
+      return { 
+        display: "flex", 
+        justifyContent: "space-between", 
+        alignItems: "center",
+        padding: "16px 20px",
+        backgroundColor: "#ffffff",
+        borderBottom: "1px solid #e5e7eb"
+      }
+    case "footer":
+      return { 
+        padding: "20px", 
+        textAlign: "center",
+        backgroundColor: "#f9fafb",
+        borderTop: "1px solid #e5e7eb"
+      }
+    case "form":
+      return { 
+        padding: "20px", 
+        border: "1px solid #e5e7eb",
+        borderRadius: "8px",
+        backgroundColor: "#ffffff"
+      }
     default:
       return {}
   }

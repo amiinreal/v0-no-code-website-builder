@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS elements (
   type TEXT NOT NULL, -- 'section', 'container', 'text', 'image', 'button', 'form', 'navbar', 'footer'
   content JSONB DEFAULT '{}', -- stores element-specific data
   styles JSONB DEFAULT '{}', -- stores CSS properties
-  order_index INTEGER NOT NULL DEFAULT 0,
+  responsive_styles JSONB DEFAULT '{}', -- stores responsive CSS properties
+  position INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

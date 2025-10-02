@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import type { EditorElement } from "@/lib/types"
 import { useEditor } from "../editor-provider"
+import { normalizeInlineStyles } from "@/lib/style-normalizer"
 
 interface TextPropertiesProps {
   element: EditorElement
@@ -21,8 +22,10 @@ export function TextProperties({ element }: TextPropertiesProps) {
   }
 
   const handleStyleChange = (field: string, value: any) => {
+    // Normalize styles to prevent shorthand/longhand conflicts
+    const normalizedStyles = normalizeInlineStyles({ ...element.styles, [field]: value })
     updateElement(element.id, {
-      styles: { ...element.styles, [field]: value },
+      styles: normalizedStyles,
     })
   }
 

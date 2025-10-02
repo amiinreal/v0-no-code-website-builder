@@ -61,15 +61,37 @@ export interface Page {
 
 export interface Element {
   id: string
-  project_id: string
-  name: string
-  slug: string
-  is_home: boolean
+  page_id: string
+  type: ElementType
+  content: Record<string, any>
+  styles: Record<string, any>
+  responsive_styles?: {
+    desktop?: Record<string, any>
+    tablet?: Record<string, any>
+    mobile?: Record<string, any>
+  }
+  parent_id: string | null
+  position: number
   created_at: string
   updated_at: string
 }
 
-export type ElementType = "section" | "container" | "text" | "image" | "button" | "form" | "navbar" | "footer"
+export type ElementType = 
+  // Layout containers (hierarchical)
+  | "section" 
+  | "container" 
+  // Navigation components
+  | "navbar" 
+  | "footer" 
+  // Content elements
+  | "text" 
+  | "image" 
+  | "logo"
+  | "button" 
+  | "form"
+  // Smart components
+  | "hero"
+  | "form-field"
 
 export interface EditorElement extends Element {
   children?: EditorElement[]

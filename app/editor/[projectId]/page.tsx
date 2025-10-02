@@ -1,15 +1,8 @@
-"use client"
-
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { EditorCanvas } from "@/components/editor/editor-canvas"
-import { EditorSidebar } from "@/components/editor/editor-sidebar"
-import { EditorToolbar } from "@/components/editor/editor-toolbar"
-import { EditorProvider } from "@/components/editor/editor-provider"
+import { EditorPageClient } from "./editor-page-client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
-import { useState } from "react"
-import type { Viewport } from "@/components/editor/viewport-switcher"
 
 interface EditorPageProps {
   params: Promise<{
@@ -114,20 +107,4 @@ export default async function EditorPage({ params }: EditorPageProps) {
   }
 
   return <EditorPageClient project={project} pages={pages || []} currentPage={currentPage} elements={elements || []} />
-}
-
-function EditorPageClient({ project, pages, currentPage, elements }: any) {
-  const [viewport, setViewport] = useState<Viewport>("desktop")
-
-  return (
-    <EditorProvider project={project} pages={pages} currentPage={currentPage} elements={elements}>
-      <div className="flex h-screen flex-col">
-        <EditorToolbar viewport={viewport} onViewportChange={setViewport} />
-        <div className="flex flex-1 overflow-hidden">
-          <EditorSidebar />
-          <EditorCanvas viewport={viewport} />
-        </div>
-      </div>
-    </EditorProvider>
-  )
 }
